@@ -72,6 +72,19 @@ describe 'AWS.S3', ->
       expect(req.endpoint.hostname).to.equal('s3.amazonaws.com')
       expect(req.path).to.equal('/bucket/key')
 
+    it 'obeys the configuration for preserveEndpointHostname', ->
+      config = new AWS.Config(
+        preserveEndpointHostname: true,
+        endpoint: 'distribution.cloudfront.net',
+        accessKeyId: 'AKID',
+        secretAccessKey: 'SECRET'
+      )
+      s3 = new AWS.S3(config)
+      expect(s3.config.preserveEndpointHostname).to.equal(true)
+      req = build('headObject', {Bucket:'bucket', Key:'key'})
+      expect(req.endpoint.hostname).to.equal('distribution.cloudfront.net')
+      expect(req.path).to.equal('/key')
+
     describe 'uri escaped params', ->
       it 'uri-escapes path and querystring params', ->
         # bucket param ends up as part of the hostname
@@ -506,7 +519,7 @@ describe 'AWS.S3', ->
       it 'opens separate stream if a file object is provided', (done) ->
         hash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
         helpers.mockResponse data: ETag: 'etag'
-        
+
         fs = require('fs')
         mock = helpers.spyOn(fs, 'createReadStream').andCallFake ->
           tr = new Stream.Transform
