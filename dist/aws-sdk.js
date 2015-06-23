@@ -3462,6 +3462,7 @@ AWS.S3.ManagedUpload = AWS.util.inherit({
 
   send: function(callback) {
     var self = this;
+    self.failed = false;
     self.callback = callback || function(err) { if (err) throw err; };
 
     var runFill = true;
@@ -3661,6 +3662,10 @@ AWS.S3.ManagedUpload = AWS.util.inherit({
       return null;
     }
 
+    if (self.completeInfo[partNumber] && self.completeInfo[partNumber].ETag !== null) {
+      return null; // Already uploaded this part.
+    }
+
     self.activeParts++;
     if (!self.service.config.params.UploadId) {
 
@@ -3686,6 +3691,7 @@ AWS.S3.ManagedUpload = AWS.util.inherit({
 
   uploadPart: function uploadPart(chunk, partNumber) {
     var self = this;
+
     var partParams = {
       Body: chunk,
       ContentLength: AWS.util.string.byteLength(chunk),
@@ -3693,7 +3699,7 @@ AWS.S3.ManagedUpload = AWS.util.inherit({
     };
 
     var partInfo = {ETag: null, PartNumber: partNumber};
-    self.completeInfo.push(partInfo);
+    self.completeInfo[partNumber] = partInfo;
 
     var req = self.service.uploadPart(partParams);
     self.parts[partNumber] = req;
@@ -3755,6 +3761,10 @@ AWS.S3.ManagedUpload = AWS.util.inherit({
       part.abort();
     });
 
+    self.activeParts = 0;
+    self.partPos = 0;
+    self.numParts = 0;
+    self.totalPartNumbers = 0;
     self.parts = {};
     self.callback(err);
     self.failed = true;
@@ -3763,7 +3773,7 @@ AWS.S3.ManagedUpload = AWS.util.inherit({
 
   finishMultiPart: function finishMultiPart() {
     var self = this;
-    var completeParams = { MultipartUpload: { Parts: self.completeInfo } };
+    var completeParams = { MultipartUpload: { Parts: self.completeInfo.slice(1) } };
     self.service.completeMultipartUpload(completeParams, function(err, data) {
       if (err) return self.cleanup(err);
       else self.callback(err, data);
